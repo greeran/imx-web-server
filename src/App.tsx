@@ -1,15 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Container, Nav, Navbar, Badge, Card, Row, Col, Button } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 
 import configData from './config/config.json';
+import { mqttService } from './services/mqttService';
 
 function App() {
   const [activeTab, setActiveTab] = useState('general');
+  const [mqttConnected, setMqttConnected] = useState(false);
 
   // Get enabled tabs from config
   const enabledTabs = Object.entries(configData.tabs).filter(([_, tabConfig]) => tabConfig.enabled);
+
+  // Initialize MQTT connection
+  useEffect(() => {
+    const initializeMQTT = async () => {
+      try {
+        // Check if sensors tab is enabled and has broker config
+        if (configData.tabs.sensors?.enabled && configData.tabs.sensors.broker_config) {
+          console.log('🚀 Initializing MQTT connection...');
+          console.log('MQTT Config:', configData.tabs.sensors.broker_config);
+          await mqttService.connect(configData.tabs.sensors.broker_config);
+          setMqttConnected(true);
+          console.log('✅ MQTT connection established successfully');
+        } else {
+          console.log('❌ MQTT not initialized: sensors tab disabled or no broker config');
+        }
+      } catch (error) {
+        console.error('Failed to connect to MQTT broker:', error);
+        setMqttConnected(false);
+      }
+    };
+
+    initializeMQTT();
+
+    // Cleanup on unmount
+    return () => {
+      mqttService.disconnect();
+    };
+  }, []);
 
   const handleButtonClick = (action: string) => {
     console.log(`Button clicked: ${action}`);
@@ -41,8 +71,8 @@ function App() {
             {configData.application.name}
           </Navbar.Brand>
           <Navbar.Text className="ms-auto">
-            <Badge bg="success" className="me-2">
-              <i className="fas fa-wifi"></i> MQTT
+            <Badge bg={mqttConnected ? "success" : "danger"} className="me-2">
+              <i className="fas fa-wifi"></i> MQTT {mqttConnected ? "Connected" : "Disconnected"}
             </Badge>
             <Badge bg="success">
               <i className="fas fa-cog"></i> System

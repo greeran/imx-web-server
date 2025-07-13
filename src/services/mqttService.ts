@@ -11,7 +11,8 @@ class MQTTService {
     return new Promise((resolve, reject) => {
       this.config = config;
       
-      const url = `mqtt://${config.host}:${config.port}`;
+      // Use WebSocket protocol for browser compatibility
+      const url = `ws://${config.host}:8083`;
       
       this.client = mqtt.connect(url, {
         clientId: config.client_id,
@@ -44,12 +45,16 @@ class MQTTService {
   private subscribeToTopics(): void {
     if (!this.client || !this.config) return;
 
+    console.log('Starting to subscribe to topics...');
+    console.log('Available topics:', Object.keys(this.config.topics));
+
     Object.entries(this.config.topics).forEach(([key, topicConfig]) => {
+      console.log(`Attempting to subscribe to: ${topicConfig.topic}`);
       this.client!.subscribe(topicConfig.topic, (err) => {
         if (err) {
           console.error(`Error subscribing to ${topicConfig.topic}:`, err);
         } else {
-          console.log(`Subscribed to ${topicConfig.topic}`);
+          console.log(`✅ Successfully subscribed to ${topicConfig.topic}`);
         }
       });
     });
@@ -57,6 +62,8 @@ class MQTTService {
 
   private handleMessage(topic: string, message: string): void {
     if (!this.config) return;
+
+    console.log(`MQTT Message received - Topic: ${topic}, Message: ${message}`);
 
     // Find the sensor key for this topic
     const sensorKey = Object.keys(this.config.topics).find(
@@ -73,7 +80,10 @@ class MQTTService {
       };
 
       this.sensorData[sensorKey] = sensorData;
+      console.log(`Sensor data updated for ${sensorKey}:`, sensorData);
       this.notifyListeners();
+    } else {
+      console.log(`Received message for unknown topic: ${topic}`);
     }
   }
 
