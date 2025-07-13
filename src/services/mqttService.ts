@@ -1,5 +1,6 @@
 import mqtt, { MqttClient } from 'mqtt';
 import { SensorData, MQTTConfig } from '../types';
+import { protobufService } from './protobufService';
 
 class MQTTService {
   private client: MqttClient | null = null;
@@ -7,38 +8,46 @@ class MQTTService {
   private sensorData: { [key: string]: SensorData } = {};
   private listeners: ((data: { [key: string]: SensorData }) => void)[] = [];
 
-  connect(config: MQTTConfig): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.config = config;
-      
-      // Use WebSocket protocol for browser compatibility
-      const url = `ws://${config.host}:8083`;
-      
-      this.client = mqtt.connect(url, {
-        clientId: config.client_id,
-        clean: true,
-        connectTimeout: 4000,
-        reconnectPeriod: 1000,
-      });
+  async connect(config: MQTTConfig): Promise<void> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Initialize protobuf service first
+        await protobufService.initialize();
+        
+        this.config = config;
+        
+        // Use WebSocket protocol for browser compatibility
+        const url = `ws://${config.host}:8083`;
+        
+        this.client = mqtt.connect(url, {
+          clientId: config.client_id,
+          clean: true,
+          connectTimeout: 4000,
+          reconnectPeriod: 1000,
+        });
 
-      this.client.on('connect', () => {
-        console.log('MQTT Connected');
-        this.subscribeToTopics();
-        resolve();
-      });
+        this.client.on('connect', () => {
+          console.log('MQTT Connected');
+          this.subscribeToTopics();
+          resolve();
+        });
 
-      this.client.on('message', (topic, message) => {
-        this.handleMessage(topic, message.toString());
-      });
+        this.client.on('message', (topic, message) => {
+          this.handleMessage(topic, message);
+        });
 
-      this.client.on('error', (error) => {
-        console.error('MQTT Error:', error);
+        this.client.on('error', (error) => {
+          console.error('MQTT Error:', error);
+          reject(error);
+        });
+
+        this.client.on('close', () => {
+          console.log('MQTT Connection closed');
+        });
+      } catch (error) {
+        console.error('Failed to initialize MQTT with protobuf:', error);
         reject(error);
-      });
-
-      this.client.on('close', () => {
-        console.log('MQTT Connection closed');
-      });
+      }
     });
   }
 
@@ -60,10 +69,10 @@ class MQTTService {
     });
   }
 
-  private handleMessage(topic: string, message: string): void {
+  private handleMessage(topic: string, message: Buffer): void {
     if (!this.config) return;
 
-    console.log(`MQTT Message received - Topic: ${topic}, Message: ${message}`);
+    console.log(`MQTT Message received - Topic: ${topic}, Message length: ${message.length} bytes`);
 
     // Find the sensor key for this topic
     const sensorKey = Object.keys(this.config.topics).find(
@@ -73,48 +82,73 @@ class MQTTService {
     if (sensorKey) {
       const topicConfig = this.config.topics[sensorKey];
       
-      // Parse JSON message or use plain text
-      let parsedValue: string;
-      let timestamp: string = new Date().toISOString();
-      
       try {
-        const jsonData = JSON.parse(message);
+        // Try to parse as protobuf first
+        const parsedData = protobufService.parseMessage(topic, message);
         
-        // Extract value based on topic type
-        switch (sensorKey) {
-          case 'temperature':
-            parsedValue = jsonData.temperature?.toString() || 'N/A';
-            timestamp = jsonData.timestamp || timestamp;
-            break;
-          case 'compass':
-            parsedValue = jsonData.heading?.toString() || 'N/A';
-            timestamp = jsonData.timestamp || timestamp;
-            break;
-          case 'gps':
-            parsedValue = `${jsonData.latitude?.toFixed(6) || 'N/A'}, ${jsonData.longitude?.toFixed(6) || 'N/A'}`;
-            timestamp = jsonData.timestamp || timestamp;
-            break;
-          case 'status':
-            parsedValue = jsonData.toString();
-            break;
-          default:
-            parsedValue = message;
+        if (parsedData) {
+          // Format the parsed protobuf data for display
+          const formattedData = protobufService.formatSensorData(topic, parsedData);
+          
+          const sensorData: SensorData = {
+            value: formattedData.value,
+            description: formattedData.description,
+            unit: formattedData.unit,
+            timestamp: formattedData.timestamp,
+          };
+
+          this.sensorData[sensorKey] = sensorData;
+          console.log(`📦 Protobuf sensor data updated for ${sensorKey}:`, sensorData);
+          this.notifyListeners();
+        } else {
+          // Fallback to JSON parsing if protobuf fails
+          const messageStr = message.toString();
+          console.log(`🔄 Falling back to JSON parsing for ${topic}`);
+          
+          try {
+            const jsonData = JSON.parse(messageStr);
+            
+            // Extract value based on topic type
+            let parsedValue: string;
+            let timestamp: string = new Date().toISOString();
+            
+            switch (sensorKey) {
+              case 'temperature':
+                parsedValue = jsonData.temperature?.toString() || 'N/A';
+                timestamp = jsonData.timestamp || timestamp;
+                break;
+              case 'compass':
+                parsedValue = jsonData.heading?.toString() || 'N/A';
+                timestamp = jsonData.timestamp || timestamp;
+                break;
+              case 'gps':
+                parsedValue = `${jsonData.latitude?.toFixed(6) || 'N/A'}, ${jsonData.longitude?.toFixed(6) || 'N/A'}`;
+                timestamp = jsonData.timestamp || timestamp;
+                break;
+              case 'status':
+                parsedValue = jsonData.toString();
+                break;
+              default:
+                parsedValue = messageStr;
+            }
+
+            const sensorData: SensorData = {
+              value: parsedValue,
+              description: topicConfig.description,
+              unit: topicConfig.unit,
+              timestamp: timestamp,
+            };
+
+            this.sensorData[sensorKey] = sensorData;
+            console.log(`📄 JSON sensor data updated for ${sensorKey}:`, sensorData);
+            this.notifyListeners();
+          } catch (jsonError) {
+            console.error(`❌ Failed to parse message for ${topic}:`, jsonError);
+          }
         }
       } catch (error) {
-        // If not JSON, use the message as-is
-        parsedValue = message;
+        console.error(`❌ Failed to handle message for ${topic}:`, error);
       }
-
-      const sensorData: SensorData = {
-        value: parsedValue,
-        description: topicConfig.description,
-        unit: topicConfig.unit,
-        timestamp: timestamp,
-      };
-
-      this.sensorData[sensorKey] = sensorData;
-      console.log(`Sensor data updated for ${sensorKey}:`, sensorData);
-      this.notifyListeners();
     } else {
       console.log(`Received message for unknown topic: ${topic}`);
     }
