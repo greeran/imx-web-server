@@ -1,0 +1,170 @@
+{
+  "application": {
+    "name": "IMX8MP Web Server",
+    "version": "1.0.0",
+    "description": "Multi-tab web server for IMX8MP and Ubuntu systems"
+  },
+  "tabs": {
+    "general": {
+      "title": "General Information",
+      "description": "System and application version information",
+      "enabled": true,
+      "data_sources": {
+        "machine_version": {
+          "type": "system_command",
+          "command": "uname -a",
+          "description": "Machine version and system information",
+          "refresh_interval": 5000
+        },
+        "application_version": {
+          "type": "static",
+          "value": "1.0.0",
+          "description": "Current application version"
+        },
+        "uptime": {
+          "type": "system_command",
+          "command": "uptime",
+          "description": "System uptime",
+          "refresh_interval": 10000
+        },
+        "cpu_usage": {
+          "type": "system_command",
+          "command": "top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1",
+          "description": "CPU usage percentage",
+          "refresh_interval": 3000
+        },
+        "memory_usage": {
+          "type": "system_command",
+          "command": "free -m | awk 'NR==2{printf \"%.1f%%\", $3*100/$2}'",
+          "description": "Memory usage percentage",
+          "refresh_interval": 5000
+        }
+      }
+    },
+    "sensors": {
+      "title": "Sensor Information",
+      "description": "Real-time sensor data from temperature, compass, and GPS",
+      "enabled": true,
+      "broker_config": {
+        "host": "localhost",
+        "port": 1883,
+        "client_id": "web_server",
+        "topics": {
+          "temperature": {
+            "topic": "sensors/temperature",
+            "description": "Temperature sensor data",
+            "unit": "°C",
+            "refresh_interval": 1000
+          },
+          "compass": {
+            "topic": "sensors/compass",
+            "description": "Compass heading data",
+            "unit": "degrees",
+            "refresh_interval": 1000
+          },
+          "gps": {
+            "topic": "sensors/gps",
+            "description": "GPS location data",
+            "unit": "lat/lon",
+            "refresh_interval": 1000
+          }
+        }
+      },
+      "buttons": {
+        "refresh_sensors": {
+          "text": "Refresh Sensors",
+          "action": "refresh_all_sensors",
+          "description": "Manually refresh all sensor data"
+        },
+        "clear_sensor_log": {
+          "text": "Clear Sensor Log",
+          "action": "clear_sensor_history",
+          "description": "Clear sensor data history"
+        }
+      }
+    },
+    "video": {
+      "title": "Video Stream",
+      "description": "RTSP video stream configuration and display",
+      "enabled": false,
+      "rtsp_config": {
+        "default_url": "rtsp://localhost:8554/stream",
+        "port": 8554,
+        "quality": "medium"
+      },
+      "buttons": {
+        "start_stream": {
+          "text": "Start Stream",
+          "action": "start_video_stream",
+          "description": "Start the video stream"
+        },
+        "stop_stream": {
+          "text": "Stop Stream",
+          "action": "stop_video_stream",
+          "description": "Stop the video stream"
+        },
+        "configure_rtsp": {
+          "text": "Configure RTSP",
+          "action": "open_rtsp_config",
+          "description": "Open RTSP configuration dialog"
+        }
+      },
+      "inputs": {
+        "rtsp_url": {
+          "type": "text",
+          "placeholder": "rtsp://localhost:8554/stream",
+          "description": "RTSP stream URL"
+        }
+      }
+    },
+    "files": {
+      "title": "File Management",
+      "description": "Download and upload files",
+      "enabled": true,
+      "upload_config": {
+        "max_file_size": "100MB",
+        "allowed_extensions": [".txt", ".log", ".json", ".csv", ".zip", ".tar.gz"],
+        "upload_directory": "./uploads"
+      },
+      "download_config": {
+        "download_directory": "./downloads",
+        "max_download_size": "500MB"
+      },
+      "buttons": {
+        "upload_file": {
+          "text": "Upload File",
+          "action": "upload_file",
+          "description": "Upload a file to the server"
+        },
+        "download_file": {
+          "text": "Download File",
+          "action": "download_file",
+          "description": "Download a file from the server"
+        },
+        "list_files": {
+          "text": "List Files",
+          "action": "list_available_files",
+          "description": "List available files for download"
+        },
+        "delete_file": {
+          "text": "Delete File",
+          "action": "delete_file",
+          "description": "Delete a file from the server"
+        }
+      }
+    }
+  },
+  "server_config": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "debug": false,
+    "log_level": "INFO"
+  },
+  "broker_config": {
+    "host": "localhost",
+    "port": 1883,
+    "username": "",
+    "password": "",
+    "keepalive": 60
+  }
+} 
