@@ -51,21 +51,27 @@
         "client_id": "web_server",
         "topics": {
           "temperature": {
-            "topic": "sensors/temperature",
-            "description": "Temperature sensor data",
+            "topic": "sensor/temperature",
+            "description": "CPU Temperature",
             "unit": "°C",
             "refresh_interval": 1000
           },
           "compass": {
-            "topic": "sensors/compass",
-            "description": "Compass heading data",
+            "topic": "sensor/compass",
+            "description": "Compass Heading",
             "unit": "degrees",
             "refresh_interval": 1000
           },
           "gps": {
-            "topic": "sensors/gps",
-            "description": "GPS location data",
+            "topic": "sensor/gps",
+            "description": "GPS Location",
             "unit": "lat/lon",
+            "refresh_interval": 1000
+          },
+          "status": {
+            "topic": "sensor/status",
+            "description": "Sensor Status",
+            "unit": "",
             "refresh_interval": 1000
           }
         }

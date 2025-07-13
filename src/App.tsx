@@ -9,6 +9,7 @@ import { mqttService } from './services/mqttService';
 function App() {
   const [activeTab, setActiveTab] = useState('general');
   const [mqttConnected, setMqttConnected] = useState(false);
+  const [sensorData, setSensorData] = useState<{ [key: string]: any }>({});
 
   // Get enabled tabs from config
   const enabledTabs = Object.entries(configData.tabs).filter(([_, tabConfig]) => tabConfig.enabled);
@@ -34,6 +35,14 @@ function App() {
     };
 
     initializeMQTT();
+
+    // Subscribe to sensor data updates
+    const handleSensorUpdate = (data: { [key: string]: any }) => {
+      console.log('📊 Sensor data updated in App:', data);
+      setSensorData(data);
+    };
+
+    mqttService.onSensorDataUpdate(handleSensorUpdate);
 
     // Cleanup on unmount
     return () => {
@@ -164,15 +173,22 @@ function App() {
               <Card.Body>
                 <p className="text-muted">{configData.tabs.sensors.description}</p>
                 <Row>
-                  {configData.tabs.sensors.broker_config && Object.entries(configData.tabs.sensors.broker_config.topics).map(([sensorKey, topicConfig]) => (
-                    <Col key={sensorKey} md={6} lg={4} className="mb-3">
-                      <div className={`sensor-card ${sensorKey} p-3 border rounded`}>
-                        <h6 className="text-muted mb-2">{topicConfig.description}</h6>
-                        <div className="value h5 mb-2">-- {topicConfig.unit}</div>
-                        <div className="timestamp small text-muted">Waiting for data...</div>
-                      </div>
-                    </Col>
-                  ))}
+                  {configData.tabs.sensors.broker_config && Object.entries(configData.tabs.sensors.broker_config.topics).map(([sensorKey, topicConfig]) => {
+                    const currentData = sensorData[sensorKey];
+                    return (
+                      <Col key={sensorKey} md={6} lg={4} className="mb-3">
+                        <div className={`sensor-card ${sensorKey} p-3 border rounded ${currentData ? 'border-success' : 'border-secondary'}`}>
+                          <h6 className="text-muted mb-2">{topicConfig.description}</h6>
+                          <div className="value h5 mb-2">
+                            {currentData ? `${currentData.value} ${topicConfig.unit}` : `-- ${topicConfig.unit}`}
+                          </div>
+                          <div className="timestamp small text-muted">
+                            {currentData ? new Date(currentData.timestamp).toLocaleString() : 'Waiting for data...'}
+                          </div>
+                        </div>
+                      </Col>
+                    );
+                  })}
                 </Row>
               </Card.Body>
             </Card>

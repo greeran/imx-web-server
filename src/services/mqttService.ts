@@ -72,11 +72,44 @@ class MQTTService {
 
     if (sensorKey) {
       const topicConfig = this.config.topics[sensorKey];
+      
+      // Parse JSON message or use plain text
+      let parsedValue: string;
+      let timestamp: string = new Date().toISOString();
+      
+      try {
+        const jsonData = JSON.parse(message);
+        
+        // Extract value based on topic type
+        switch (sensorKey) {
+          case 'temperature':
+            parsedValue = jsonData.temperature?.toString() || 'N/A';
+            timestamp = jsonData.timestamp || timestamp;
+            break;
+          case 'compass':
+            parsedValue = jsonData.heading?.toString() || 'N/A';
+            timestamp = jsonData.timestamp || timestamp;
+            break;
+          case 'gps':
+            parsedValue = `${jsonData.latitude?.toFixed(6) || 'N/A'}, ${jsonData.longitude?.toFixed(6) || 'N/A'}`;
+            timestamp = jsonData.timestamp || timestamp;
+            break;
+          case 'status':
+            parsedValue = jsonData.toString();
+            break;
+          default:
+            parsedValue = message;
+        }
+      } catch (error) {
+        // If not JSON, use the message as-is
+        parsedValue = message;
+      }
+
       const sensorData: SensorData = {
-        value: message,
+        value: parsedValue,
         description: topicConfig.description,
         unit: topicConfig.unit,
-        timestamp: new Date().toISOString(),
+        timestamp: timestamp,
       };
 
       this.sensorData[sensorKey] = sensorData;
